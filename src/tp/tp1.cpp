@@ -111,20 +111,29 @@ public:
     {
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
-        ImGuiIO& io = ImGui::GetIO(); (void)io;
         ImGui::StyleColorsDark();
         ImGui_ImplSdlGL3_Init(m_window, "#version 330");
 
-        m_repere= make_grid(10);
-        m_cube = read_mesh("../data/bigguy.obj");
-        if(m_cube.materials().count() == 0)
-            return -1;
-        //m_triangleGroups = m_cube.groups();
+        show_demo_window = false;
+        x= 0, y= 10, z= 10;
+        lightPosition= Point(0, 10, 10);
+        nbOctaves= 4;
+        color= Red();
 
-        m_objet= Mesh(GL_TRIANGLES);
+        m_repere= make_grid(10);
+        m_cube = read_mesh("../data/cube.obj");
+        if(m_cube.materials().count() == 0) return -1;
+        if(!m_cube.vertex_count()) return -1;
+
+        //m_objet= Mesh(GL_TRIANGLES);
         //{ /* ajouter des triplets de sommet == des triangles dans objet... */ }
+        m_objet = read_mesh("../data/bigguy.obj");
+        if(m_objet.materials().count() == 0) return -1;
+        if(!m_objet.vertex_count()) return -1;
+        m_triangleGroups = m_objet.groups();
 
         m_buffers.create(m_objet);
+        //m_objet.release();
 
         m_program = read_program("../data/shaders/shadows.glsl");
         program_print_errors(m_program);
@@ -139,8 +148,8 @@ public:
 
     int quit( )
     {
-        m_objet.release();
         m_repere.release();
+        m_objet.release();
         m_cube.release();
         release_program(m_program);
         ImGui_ImplSdlGL3_Shutdown();
@@ -154,11 +163,13 @@ public:
 
         draw(m_repere, Identity(), camera());
 
+        //draw(m_cube, Identity() * Translation(x,y,z), camera());
+
         glUseProgram(m_program);
-
         setUniforms();
-
-        m_cube.draw(m_program, true, false, true, false, false);
+        //glBindVertexArray(m_buffers.vao);
+        //glDrawArrays(GL_TRIANGLES, 0, m_buffers.vertex_count);
+        m_objet.draw(m_program, true, false, true, false, false);
 
         handleKeys();
 
@@ -194,45 +205,61 @@ public:
         Transform mvp= projection * view * model;
 
         //Color color = materials.materials.at(group.index).diffuse;
-        Color color = Red();
 
         location= glGetUniformLocation(m_program, "mvpMatrix");
         glUniformMatrix4fv(location, 1, GL_TRUE, mvp.data());
 
         location= glGetUniformLocation(m_program, "lightPosition");
-        glUniform3f(location, x, y, z);
+        glUniform3f(location, lightPosition.x, lightPosition.y, lightPosition.z);
 
         location= glGetUniformLocation(m_program, "diffuse");
         glUniform4f(location, color.r, color.g, color.b, color.a);
 
         location= glGetUniformLocation(m_program, "nbOctaves");
-        glUniform1i(location, 4);
+        glUniform1i(location, nbOctaves);
     }
 
     void handleKeys( )
     {
-        if(key_state(SDLK_LEFT))
-            x -= 0.1f;
-        if(key_state(SDLK_RIGHT))
-            x += 0.1f;
-        if(key_state(SDLK_UP))
-            z -= 0.1f;
-        if(key_state(SDLK_DOWN))
-            z += 0.1f;
+        if(key_state(SDLK_LEFT) || key_state(SDLK_q))
+            lightPosition = lightPosition - Vector(0.1f, 0, 0);
+        if(key_state(SDLK_RIGHT) || key_state(SDLK_d))
+            lightPosition = lightPosition + Vector(0.1f, 0, 0);
+        if(key_state(SDLK_UP) || key_state(SDLK_z))
+            lightPosition = lightPosition + Vector(0, 0, 0.1f);
+        if(key_state(SDLK_DOWN) || key_state(SDLK_s))
+            lightPosition = lightPosition - Vector(0, 0, 0.1f);
         if(key_state(SDLK_SPACE))
-            y += 0.1f;
+            lightPosition = lightPosition + Vector(0, 0.1f, 0);
         if(key_state(SDLK_LSHIFT))
-            y -= 0.1f;
+            lightPosition = lightPosition - Vector(0, 0.1f, 0);
     }
 
     void imguiWindow( )
     {
+        ImGuiIO& io = ImGui::GetIO(); (void)io;
         ImGui_ImplSdlGL3_NewFrame(m_window);
         ImGui::NewFrame();
 
         ImGui::Begin("Settings");
-        ImGui::End();
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+        ImGui::Spacing();
+        ImGui::Checkbox("Demo Window", &show_demo_window);
+        if (show_demo_window)
+            ImGui::ShowDemoWindow(&show_demo_window);
 
+        ImGui::SeparatorText("Light Position");
+        ImGui::SliderFloat("x", &lightPosition.x, -10.0f, 10.0f);
+        ImGui::SliderFloat("y", &lightPosition.y, -10.0f, 10.0f);
+        ImGui::SliderFloat("z", &lightPosition.z, -10.0f, 10.0f);
+
+        ImGui::SeparatorText("Toon Subdivision");
+        ImGui::SliderInt("nbOctaves", &nbOctaves, 1, 30, "%d", ImGuiSliderFlags_Logarithmic);
+
+        ImGui::SeparatorText("Model Color");
+        ImGui::ColorEdit3("color", (float*)&color);
+
+        ImGui::End();
         ImGui::Render();
         ImGui_ImplSdlGL3_RenderDrawData(ImGui::GetDrawData());
     }
@@ -242,11 +269,16 @@ protected:
     Mesh m_objet;
     Mesh m_repere;
     Mesh m_cube;
-    std::vector<TriangleGroup> m_triangleGroups;
     Buffers m_buffers;
+    std::vector<TriangleGroup> m_triangleGroups;
     int location;
+
     // Imgui variables
-    float x= 0, y= 0, z= 10;
+    bool show_demo_window;
+    float x, y, z;
+    Point lightPosition;
+    int nbOctaves;
+    Color color;
 };
 
 

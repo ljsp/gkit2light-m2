@@ -1,0 +1,34 @@
+cmake_minimum_required(VERSION 3.10)
+
+# set the project name
+project(gkit2light)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED true)
+
+# gkit files
+file(GLOB gkit_files "src/gKit/*.cpp")
+
+#imgui files
+file(GLOB imgui_files "src/imgui/*.cpp")
+
+# add the executable
+add_executable(tuto7_camera "tutos/tuto7_camera.cpp" ${gkit_files} ${imgui_files})
+target_include_directories(tuto7_camera PUBLIC "src/gKit" "src/imgui")
+target_link_libraries(tuto7_camera GL GLEW SDL2 SDL2_image)
+set_target_properties(tuto7_camera PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+set_target_properties(tuto7_camera PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_executable(tp1 "src/tp/tp1.cpp" ${gkit_files} ${imgui_files})
+target_include_directories(tp1 PUBLIC "src/gKit" "src/imgui")
+target_link_libraries(tp1 GL GLEW SDL2 SDL2_image)
+set_target_properties(tp1 PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+set_target_properties(tp1 PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_executable(shader_kit "src/shader_kit.cpp" ${gkit_files})
+target_include_directories(shader_kit PUBLIC "src/gKit")
+target_link_libraries(shader_kit GL GLEW SDL2 SDL2_image)
+set_target_properties(shader_kit PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+set_target_properties(shader_kit PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+

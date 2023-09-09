@@ -1,0 +1,78 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"jsonFile" : "directory-.-Debug-f5ebdc15457944623624.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "gkit2light",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "shader_kit::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-shader_kit-Debug-cd5375d307c0d9636f2b.json",
+					"name" : "shader_kit",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "tp1::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-tp1-Debug-c3250a8e798a7f030d50.json",
+					"name" : "tp1",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "tuto7_camera::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-tuto7_camera-Debug-eb685f20d25da62da5c2.json",
+					"name" : "tuto7_camera",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/lucas/Bureau/gkit2light/cmake-build-debug",
+		"source" : "/home/lucas/Bureau/gkit2light"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 5
+	}
+}

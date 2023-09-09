@@ -1,0 +1,4 @@
+/home/lucas/Bureau/gkit2light/cmake-build-release/CMakeFiles/tuto7_camera.dir
+/home/lucas/Bureau/gkit2light/cmake-build-release/CMakeFiles/shader_kit.dir
+/home/lucas/Bureau/gkit2light/cmake-build-release/CMakeFiles/edit_cache.dir
+/home/lucas/Bureau/gkit2light/cmake-build-release/CMakeFiles/rebuild_cache.dir

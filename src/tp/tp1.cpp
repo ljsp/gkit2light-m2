@@ -65,28 +65,48 @@ struct Buffers
     {
         if(!mesh.vertex_buffer_size()) return;
 
-        // cree et configure un vertex array object: conserve la description des attributs de sommets
+        std::vector<float> data;
+        int vertexSize = mesh.vertex_buffer_size();
+        int texSize = mesh.texcoord_buffer_size();
+        int normalSize = mesh.normal_buffer_size();
+
+        const float* vertexData = mesh.vertex_buffer();
+        const float* texData = mesh.texcoord_buffer();
+        const float* normalData = mesh.normal_buffer();
+
+        for(int i = 0; i < vertexSize/sizeof(float); i++) {
+            data.push_back(vertexData[i]);
+        }
+
+        for(int i = 0; i < texSize/sizeof(float); i++) {
+            data.push_back(texData[i]);
+        }
+
+        for(int i = 0; i < normalSize/sizeof(float); i++) {
+            data.push_back(normalData[i]);
+        }
+
+        int bufferSize = vertexSize + texSize + normalSize;
+
         glGenVertexArrays(1, &vao);
         glBindVertexArray(vao);
 
-        // cree et initialise le buffer stockant les positions des sommets
         glGenBuffers(1, &vertex_buffer);
         glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
-        glBufferData(GL_ARRAY_BUFFER, mesh.vertex_buffer_size(), mesh.vertex_buffer(), GL_STATIC_DRAW);
-        // attention : le buffer est implicite, c'est celui qui est selectionne sur GL_ARRAY_BUFFER
+        glBufferData(GL_ARRAY_BUFFER, bufferSize, data.data(), GL_STATIC_DRAW);
 
-        // attribut 0, position des sommets, declare dans le vertex shader : layout(location= 0) in vec3 position;
-        glVertexAttribPointer(0, // numero de l'attribut, cf declaration dans le shader
-                              3, GL_FLOAT,         // size et type, position est un vec3 dans le vertex shader
-                              GL_FALSE,            // pas de normalisation des valeurs
-                              0,                   // stride 0, les valeurs sont les unes a la suite des autres
-                              0                    // offset 0, les valeurs sont au debut du buffer
-        );
-        glEnableVertexAttribArray(0);   // numero de l'attribut, cf declaration dans le shader
-        // attention : le vertex array selectionne est un parametre implicite
-        // attention : le buffer selectionne sur GL_ARRAY_BUFFER est un parametre implicite
+        glVertexAttribPointer(0,3, GL_FLOAT,GL_FALSE,0,0);
 
-        // conserve le nombre de sommets
+        int offset =vertexSize; // 12;
+        glVertexAttribPointer(1,2, GL_FLOAT,GL_FALSE,0,(const void*) offset);
+
+        offset = offset + texSize;
+        glVertexAttribPointer(2,3, GL_FLOAT,GL_FALSE,0,(const void*) offset);
+
+        glEnableVertexAttribArray(0);
+        glEnableVertexAttribArray(1);
+        glEnableVertexAttribArray(2);
+
         vertex_count= mesh.vertex_count();
     }
 
@@ -115,8 +135,10 @@ public:
         ImGui_ImplSdlGL3_Init(m_window, "#version 330");
 
         show_demo_window = false;
-        x= 0, y= 10, z= 10;
         lightPosition= Point(0, 10, 10);
+        objetPosition= Point(0, 9, 0);
+        objectRotation = 0;
+        objetScale = 0.1f;
         nbOctaves= 4;
         color= Red();
 
@@ -130,6 +152,7 @@ public:
         m_objet = read_mesh("../data/bigguy.obj");
         if(m_objet.materials().count() == 0) return -1;
         if(!m_objet.vertex_count()) return -1;
+        m_texture = read_texture(0, "../data/debug2x2red.png");
         m_triangleGroups = m_objet.groups();
 
         m_buffers.create(m_objet);
@@ -167,9 +190,8 @@ public:
 
         glUseProgram(m_program);
         setUniforms();
-        //glBindVertexArray(m_buffers.vao);
-        //glDrawArrays(GL_TRIANGLES, 0, m_buffers.vertex_count);
-        m_objet.draw(m_program, true, false, true, false, false);
+        m_buffers.draw();
+        //m_objet.draw(m_program, true, false, true, false, false);
 
         handleKeys();
 
@@ -201,7 +223,8 @@ public:
     {
         Transform view= camera().view();
         Transform projection= camera().projection();
-        Transform model= Identity() * Scale(0.1f) * Translation(0, 9, 0);
+        Transform model= Identity() * Scale(objetScale) *
+                  Translation(Vector(objetPosition)) * RotationY(objectRotation);
         Transform mvp= projection * view * model;
 
         //Color color = materials.materials.at(group.index).diffuse;
@@ -225,9 +248,9 @@ public:
             lightPosition = lightPosition - Vector(0.1f, 0, 0);
         if(key_state(SDLK_RIGHT) || key_state(SDLK_d))
             lightPosition = lightPosition + Vector(0.1f, 0, 0);
-        if(key_state(SDLK_UP) || key_state(SDLK_z))
+        if(key_state(SDLK_DOWN) || key_state(SDLK_z))
             lightPosition = lightPosition + Vector(0, 0, 0.1f);
-        if(key_state(SDLK_DOWN) || key_state(SDLK_s))
+        if(key_state(SDLK_UP) || key_state(SDLK_s))
             lightPosition = lightPosition - Vector(0, 0, 0.1f);
         if(key_state(SDLK_SPACE))
             lightPosition = lightPosition + Vector(0, 0.1f, 0);
@@ -241,23 +264,32 @@ public:
         ImGui_ImplSdlGL3_NewFrame(m_window);
         ImGui::NewFrame();
 
-        ImGui::Begin("Settings");
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+        ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_NoMove);
+        ImGui::Text("Application average %.1f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
         ImGui::Spacing();
         ImGui::Checkbox("Demo Window", &show_demo_window);
         if (show_demo_window)
             ImGui::ShowDemoWindow(&show_demo_window);
 
         ImGui::SeparatorText("Light Position");
-        ImGui::SliderFloat("x", &lightPosition.x, -10.0f, 10.0f);
-        ImGui::SliderFloat("y", &lightPosition.y, -10.0f, 10.0f);
-        ImGui::SliderFloat("z", &lightPosition.z, -10.0f, 10.0f);
+        ImGui::SliderFloat("light x", &lightPosition.x, -10.0f, 10.0f);
+        ImGui::SliderFloat("light y", &lightPosition.y, -10.0f, 10.0f);
+        ImGui::SliderFloat("light z", &lightPosition.z, -10.0f, 10.0f);
 
         ImGui::SeparatorText("Toon Subdivision");
         ImGui::SliderInt("nbOctaves", &nbOctaves, 1, 30, "%d", ImGuiSliderFlags_Logarithmic);
 
         ImGui::SeparatorText("Model Color");
         ImGui::ColorEdit3("color", (float*)&color);
+
+        ImGui::SeparatorText("Model Position");
+        ImGui::SliderFloat("x", &objetPosition.x, -10.0f, 10.0f);
+        ImGui::SliderFloat("y", &objetPosition.y, -10.0f, 10.0f);
+        ImGui::SliderFloat("z", &objetPosition.z, -10.0f, 10.0f);
+        ImGui::SliderFloat("rotation", &objectRotation, -180.0f, 180.0f, "%.3f");
+
+        ImGui::SeparatorText("Model Scale");
+        ImGui::SliderFloat("scale", &objetScale, 0.0f, 5.0f, "%.3f");
 
         ImGui::End();
         ImGui::Render();
@@ -266,6 +298,7 @@ public:
 
 protected:
     GLuint m_program;
+    GLuint m_texture;
     Mesh m_objet;
     Mesh m_repere;
     Mesh m_cube;
@@ -275,8 +308,10 @@ protected:
 
     // Imgui variables
     bool show_demo_window;
-    float x, y, z;
     Point lightPosition;
+    Point objetPosition;
+    float objectRotation;
+    float objetScale;
     int nbOctaves;
     Color color;
 };

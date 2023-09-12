@@ -1,6 +1,7 @@
 
 #include "texture.h"
 #include "app_camera.h"
+#include "imgui.h"
 
 AppCamera::AppCamera( const int width, const int height, const int major, const int minor, const int samples ) 
     : App(width, height, major, minor, samples), m_camera() 
@@ -18,9 +19,10 @@ int AppCamera::prerender( )
     unsigned int mb= SDL_GetRelativeMouseState(&mx, &my);
     int mousex, mousey;
     SDL_GetMouseState(&mousex, &mousey);
-    
+    ImGuiIO& io = ImGui::GetIO();
+
     // deplace la camera
-    if(mb & SDL_BUTTON(1))
+    if(!io.WantCaptureMouse && mb & SDL_BUTTON(1))
         m_camera.rotation(mx, my);      // tourne autour de l'objet
     else if(mb & SDL_BUTTON(3))
         m_camera.translation((float) mx / (float) window_width(), (float) my / (float) window_height()); // deplace le point de rotation

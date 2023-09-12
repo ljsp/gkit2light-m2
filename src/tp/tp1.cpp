@@ -193,6 +193,8 @@ public:
         m_buffers.draw();
         //m_objet.draw(m_program, true, false, true, false, false);
 
+        //question6();
+
         handleKeys();
 
         imguiWindow();
@@ -210,13 +212,30 @@ public:
 
             glUseProgram(m_program);
             {
-                setUniforms();
+                Transform view= camera().view();
+                Transform projection= camera().projection();
+                Transform model= Identity() * Scale(objetScale) *
+                                 Translation(Vector(objetPosition)) * RotationY(objectRotation);
+                Transform mvp= projection * view * model;
+
+                Color color = materials.materials.at(group.index).diffuse;
+
+                location= glGetUniformLocation(m_program, "mvpMatrix");
+                glUniformMatrix4fv(location, 1, GL_TRUE, mvp.data());
+
+                location= glGetUniformLocation(m_program, "lightPosition");
+                glUniform3f(location, lightPosition.x, lightPosition.y, lightPosition.z);
+
+                location= glGetUniformLocation(m_program, "diffuse");
+                glUniform4f(location, color.r, color.g, color.b, color.a);
+
+                location= glGetUniformLocation(m_program, "nbOctaves");
+                glUniform1i(location, nbOctaves);
 
                 glBindVertexArray(m_buffers.vao);
                 glDrawArrays(GL_TRIANGLES, group.first, group.n);
             }
         }
-
     }
 
     void setUniforms()

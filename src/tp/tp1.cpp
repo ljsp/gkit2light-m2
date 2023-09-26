@@ -139,8 +139,8 @@ public:
         objetPosition= Point(0, 9, 0);
         objectRotation = 0;
         objetScale = 0.1f;
-        nbOctaves= 4;
-        color= Red();
+        toonLevel= 4;
+        color= White();
 
         m_repere= make_grid(10);
         m_cube = read_mesh("../data/cube.obj");
@@ -152,13 +152,13 @@ public:
         m_objet = read_mesh("../data/bigguy.obj");
         if(m_objet.materials().count() == 0) return -1;
         if(!m_objet.vertex_count()) return -1;
-        m_texture = read_texture(0, "../data/debug2x2red.png");
-        m_triangleGroups = m_objet.groups();
+        m_texture = read_texture(0, "../data/monde.jpg");
+
+        m_groups = m_objet.groups();
 
         m_buffers.create(m_objet);
-        //m_objet.release();
 
-        m_program = read_program("../data/shaders/shadows.glsl");
+        m_program = read_program("../data/shaders/texturesAndToon.glsl");
         program_print_errors(m_program);
 
         glClearColor(0.2f, 0.2f, 0.2f, 1.f);  // couleur par defaut de la fenetre
@@ -186,14 +186,14 @@ public:
 
         draw(m_repere, Identity(), camera());
 
-        //draw(m_cube, Identity() * Translation(x,y,z), camera());
+        //glUseProgram(m_program);
+        //program_use_texture(m_program, "texture0", 0, m_texture);
+        //setUniforms();
+        //m_buffers.draw();
 
-        glUseProgram(m_program);
-        setUniforms();
-        m_buffers.draw();
-        //m_objet.draw(m_program, true, false, true, false, false);
+        //m_objet.draw(m_program, true, true, true, false, false);
 
-        //question6();
+        question6();
 
         handleKeys();
 
@@ -206,9 +206,9 @@ public:
     {
         const Materials& materials= m_objet.materials();
 
-        for(unsigned i= 0; i < m_triangleGroups.size(); i++)
+        for(unsigned i= 0; i < m_groups.size(); i++)
         {
-            const TriangleGroup& group= m_triangleGroups[i];
+            const TriangleGroup& group= m_groups[i];
 
             glUseProgram(m_program);
             {
@@ -229,8 +229,8 @@ public:
                 location= glGetUniformLocation(m_program, "diffuse");
                 glUniform4f(location, color.r, color.g, color.b, color.a);
 
-                location= glGetUniformLocation(m_program, "nbOctaves");
-                glUniform1i(location, nbOctaves);
+                location= glGetUniformLocation(m_program, "toonLevel");
+                glUniform1i(location, toonLevel);
 
                 glBindVertexArray(m_buffers.vao);
                 glDrawArrays(GL_TRIANGLES, group.first, group.n);
@@ -257,8 +257,8 @@ public:
         location= glGetUniformLocation(m_program, "diffuse");
         glUniform4f(location, color.r, color.g, color.b, color.a);
 
-        location= glGetUniformLocation(m_program, "nbOctaves");
-        glUniform1i(location, nbOctaves);
+        location= glGetUniformLocation(m_program, "toonLevel");
+        glUniform1i(location, toonLevel);
     }
 
     void handleKeys( )
@@ -296,7 +296,7 @@ public:
         ImGui::SliderFloat("light z", &lightPosition.z, -10.0f, 10.0f);
 
         ImGui::SeparatorText("Toon Subdivision");
-        ImGui::SliderInt("nbOctaves", &nbOctaves, 1, 30, "%d", ImGuiSliderFlags_Logarithmic);
+        ImGui::SliderInt("Toon Level", &toonLevel, 1, 30, "%d", ImGuiSliderFlags_Logarithmic);
 
         ImGui::SeparatorText("Model Color");
         ImGui::ColorEdit3("color", (float*)&color);
@@ -322,7 +322,7 @@ protected:
     Mesh m_repere;
     Mesh m_cube;
     Buffers m_buffers;
-    std::vector<TriangleGroup> m_triangleGroups;
+    std::vector<TriangleGroup> m_groups;
     int location;
 
     // Imgui variables
@@ -331,7 +331,7 @@ protected:
     Point objetPosition;
     float objectRotation;
     float objetScale;
-    int nbOctaves;
+    int toonLevel;
     Color color;
 };
 

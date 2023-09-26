@@ -13,8 +13,8 @@ out vec2 vertex_texcoord;
 void main( )
 {
     gl_Position= mvpMatrix * vec4(position, 1);
-    
-    vertex_position= vec3(mvMatrix * vec4(position, 1));
+
+	vertex_position= vec3(mvMatrix * vec4(position, 1));
     vertex_texcoord= texcoord;
 }
 #endif

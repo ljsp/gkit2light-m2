@@ -17,6 +17,8 @@
 #include "window.h"
 #include "files.h"
 
+#include "imgui.h"
+#include "imgui_impl_sdl_gl3.h"
 
 static float aspect= 1;
 
@@ -175,6 +177,8 @@ int events( Window window )
     SDL_Event event;
     while(SDL_PollEvent(&event))
     {
+        ImGui_ImplSdlGL3_ProcessEvent(&event);
+
         switch(event.type)
         {
             case SDL_WINDOWEVENT:

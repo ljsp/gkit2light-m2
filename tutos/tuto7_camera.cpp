@@ -64,7 +64,7 @@ public:
         m_repere= make_grid(10);
 
         // charge un objet
-        m_cube= read_mesh("../data/bigguy.obj");
+        m_cube= read_mesh("../data/cube.obj");
 
         // un autre objet
         m_objet= Mesh(GL_TRIANGLES);

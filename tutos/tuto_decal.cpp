@@ -11,6 +11,9 @@
 #include "draw.h"
 #include "app_camera.h"        // classe Application a deriver
 
+#include "imgui.h"
+#include "imgui_impl_sdl_gl3.h"
+
 
 // utilitaire. creation d'une grille / repere.
 // n= 0 ne dessine que les axes du repere.
@@ -181,6 +184,11 @@ public:
     // creation des objets de l'application
     int init( )
     {
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGui::StyleColorsDark();
+        ImGui_ImplSdlGL3_Init(m_window, "#version 330");
+
         // decrire un repere / grille 
         m_repere= make_grid(20);
         m_local= make_grid(2);
@@ -191,9 +199,9 @@ public:
         m_frustum= make_frustum();
         
         // charge l'element
-        m_objet= read_mesh("data/robot.obj");
+        m_objet= read_mesh("../data/robot.obj");
         
-        m_texture= read_texture(0, "data/grid.png");
+        m_texture= read_texture(0, "../data/grid.png");
         //~ m_texture= read_texture(0, "orange_splash.png");    // pas dans le depot
         //~ m_texture= read_texture(0, "decal_shadow.png"); // pas dans le depot
         
@@ -205,7 +213,7 @@ public:
         float border[]= { 1, 1, 1, 1 };
         glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border);
         
-        m_program= read_program("tutos/decal.glsl");
+        m_program= read_program("../tutos/decal.glsl");
         program_print_errors(m_program);
         
         // position initiale de l'objet
@@ -236,6 +244,9 @@ public:
         m_local.release();
         m_ground.release();
         m_proxy.release();
+
+        ImGui_ImplSdlGL3_Shutdown();
+        ImGui::DestroyContext();
         
         release_program(m_program);
         glDeleteTextures(1, &m_texture);

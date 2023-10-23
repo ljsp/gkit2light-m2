@@ -14,6 +14,7 @@
 
 #include "imgui.h"
 #include "imgui_impl_sdl_gl3.h"
+#include "app_time.h"
 
 Mesh make_grid( const int n= 10 )
 {
@@ -51,6 +52,45 @@ Mesh make_grid( const int n= 10 )
     glLineWidth(2);
 
     return grid;
+}
+
+Mesh make_frustum( )
+{
+    glLineWidth(2);
+    Mesh camera= Mesh(GL_LINES);
+
+    camera.color(Yellow());
+    // face avant
+    camera.vertex(-1, -1, -1);
+    camera.vertex(-1, 1, -1);
+    camera.vertex(-1, 1, -1);
+    camera.vertex(1, 1, -1);
+    camera.vertex(1, 1, -1);
+    camera.vertex(1, -1, -1);
+    camera.vertex(1, -1, -1);
+    camera.vertex(-1, -1, -1);
+
+    // face arriere
+    camera.vertex(-1, -1, 1);
+    camera.vertex(-1, 1, 1);
+    camera.vertex(-1, 1, 1);
+    camera.vertex(1, 1, 1);
+    camera.vertex(1, 1, 1);
+    camera.vertex(1, -1, 1);
+    camera.vertex(1, -1, 1);
+    camera.vertex(-1, -1, 1);
+
+    // aretes
+    camera.vertex(-1, -1, -1);
+    camera.vertex(-1, -1, 1);
+    camera.vertex(-1, 1, -1);
+    camera.vertex(-1, 1, 1);
+    camera.vertex(1, 1, -1);
+    camera.vertex(1, 1, 1);
+    camera.vertex(1, -1, -1);
+    camera.vertex(1, -1, 1);
+
+    return camera;
 }
 
 struct Buffers
@@ -122,10 +162,79 @@ struct Buffers
     }
 };
 
-class TP : public AppCamera
+struct ShadowMap {
+    GLuint framebuffer;
+    GLuint shadowMap;
+
+    ShadowMap( ) : framebuffer(0), shadowMap(0) {}
+
+    void create( const int width, const int height )
+    {
+        // creer une texture pour contenir la shadow map
+        glGenTextures(1, &shadowMap);
+        glBindTexture(GL_TEXTURE_2D, shadowMap);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+
+        // parametres de filtrage et de "clamping" de la texture
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0); // obligatoire
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); // obligatoire
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR); // obligatoire
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); // obligatoire
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); // obligatoire
+
+        // creer un framebuffer pour contenir la shadow map
+        glGenFramebuffers(1, &framebuffer);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer);
+        glFramebufferTexture(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowMap, 0);
+
+        // ne pas oublier de verifier... (c'est trop souvent oublie)
+        GLenum status= glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+        if(status != GL_FRAMEBUFFER_COMPLETE)
+            printf("[error] framebuffer is not complete\n");
+
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    }
+
+    void write()
+    {
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer);
+        glViewport(0, 0, 1024, 1024);
+        glClear(GL_DEPTH_BUFFER_BIT);
+    }
+
+    void release( )
+    {
+        glDeleteTextures(1, &shadowMap);
+        glDeleteFramebuffers(1, &framebuffer);
+    }
+
+};
+
+struct BBox
+{
+    Point pmin, pmax;
+
+    BBox( const Point& p ) : pmin(p), pmax(p) {}
+    BBox( const Point& a, const Point& b ) : pmin(a), pmax(b) {}
+    BBox( const BBox& b ) : pmin(b.pmin), pmax(b.pmax) {}
+
+    BBox& insert( const Point& p ) { pmin= min(pmin, p); pmax= max(pmax, p); return *this; }
+    BBox& insert( const BBox& b ) { pmin= min(pmin, b.pmin); pmax= max(pmax, b.pmax); return *this; }
+
+    float centroid( const int axis ) const { return (pmin(axis) + pmax(axis)) / 2; }
+};
+
+
+BBox EmptyBox( )
+{
+    return BBox(Point(FLT_MAX, FLT_MAX, FLT_MAX),
+                Point(-FLT_MAX, -FLT_MAX, -FLT_MAX));
+}
+
+class TP : public AppTime
 {
 public:
-    TP( ) : AppCamera(1920, 1080) {}
+    TP( ) : AppTime(1920, 1080) {}
 
     int init( )
     {
@@ -134,18 +243,22 @@ public:
         ImGui::StyleColorsDark();
         ImGui_ImplSdlGL3_Init(m_window, "#version 330");
 
+        m_camera.projection(window_width(), window_height(), 45);
+
         show_demo_window = false;
         lightPosition= Point(0, 10, 10);
         objetPosition= Point(1, 0, 0);
         objectRotation = 0;
         objetScale = 0.5f;
 
+        m_position = Identity();
         m_repere= make_grid(10);
         m_cube = read_mesh("../data/cube.obj");
         if(m_cube.materials().count() == 0) return -1;
         if(!m_cube.vertex_count()) return -1;
+        m_frustum = make_frustum();
 
-        m_objet = read_mesh("../data/cube.obj");
+        m_objet = read_mesh("../data/bistro-small/export.obj");
         if(m_objet.materials().count() == 0) return -1;
         if(!m_objet.vertex_count()) return -1;
         Materials& materials= m_objet.materials();
@@ -164,7 +277,17 @@ public:
         }
 
         m_white_texture= read_texture(0, "../data/blanc.jpg");  // !! utiliser une vraie image blanche...
+        // Faire la bounding box de l'objet
+        //Point pMin, pMax;
+        //m_objet.bounds(pMin, pMax);
+        //unsigned partition[m_objet.triangle_count()];
+        //memset(partition, 0, sizeof(partition));
+        //blocs = blocDivision(pMin, pMax);
+
         m_groups = m_objet.groups();
+
+        // creer une shadow map
+        m_shadow_map.create(1024, 1024);
 
         m_buffers.create(m_objet);
 
@@ -192,6 +315,8 @@ public:
 
     int render( )
     {
+        cameraUpdate();
+
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         //draw(m_repere, Identity(), camera());
@@ -206,13 +331,34 @@ public:
     }
 
     void scene_bistro() {
+        Transform r= RotationX(-90);
+        Transform t= Translation(0,0, 8);
+        Transform m= r * t;
 
-        Transform view= camera().view();
-        Transform projection= camera().projection();
-        Transform model= Identity();
+        Transform decal_view= Inverse(m_position * m);
+        //~ Transform decal_projection= Perspective(35, 1, float(0.1), float(10));
+        Transform decal_projection= Ortho(-2, 2, -2, 2, float(0.1), float(10));
+
+        // transformations de la camera de l'application
+        Transform view= m_camera.view();
+        Transform projection= m_camera.projection();
+
+        if(key_state('e'))
+        {
+            // change de point de vue
+            view= decal_view;
+            projection= decal_projection;
+        }
+
+        Transform model= Identity() * Scale(objetScale);
 
         Transform mvp= projection * view * model;
         Transform mv= view * model;
+
+        if (key_state('r')) {
+            Transform decal_m= Inverse(decal_projection * decal_view);
+            draw(m_frustum, decal_m, view, projection);
+        }
 
         glUseProgram(m_program);
 
@@ -232,18 +378,57 @@ public:
             else
                 program_use_texture(m_program, "material_texture", 0, m_white_texture);
 
-            frustumCulling();
+            // Faire frustum culling des blocs
 
             m_objet.draw(m_groups[i].first, m_groups[i].n, m_program, true,
                          true, true, false, false);
         }
     }
 
-    bool frustumCulling() {
-        // Faire la bounding box de l'objet
-        Point p000, p111;
-        m_objet.bounds(p000, p111);
+    std::vector<std::pair<Point,Point>> blocDivision(Point pMin, Point pMax) {
 
+        // Trouver les coordonnées médianes
+        float midX = (pMin.x + pMax.x) / 2.0;
+        float midY = (pMin.y + pMax.y) / 2.0;
+        float midZ = (pMin.z + pMax.z) / 2.0;
+
+        // Diviser la bounding box en 8 sous-boxes
+        std::vector<std::pair<Point, Point>> blocs;
+
+        // Bloc du bas
+        blocs.emplace_back(pMin, Point(midX, midY, midZ));
+        blocs.emplace_back(Point(midX, pMin.y, pMin.z), Point(pMax.x, midY, midZ));
+        blocs.emplace_back(Point(pMin.x, midY, pMin.z), Point(midX, pMax.y, midZ));
+        blocs.emplace_back(Point(midX, midY, pMin.z), Point(pMax.x, pMax.y, midZ));
+
+        // Bloc du haut
+        blocs.emplace_back(Point(pMin.x, pMin.y, midZ), Point(midX, midY, pMax.z));
+        blocs.emplace_back(Point(midX, pMin.y, midZ), Point(pMax.x, midY, pMax.z));
+        blocs.emplace_back(Point(pMin.x, midY, midZ), Point(midX, pMax.y, pMax.z));
+        blocs.emplace_back(Point(midX, midY, midZ), pMax);
+
+        return blocs;
+    }
+
+    /*std::vector<unsigned> splitBox(std::pair<Point, Point> box,  ) {
+        std::vector<unsigned> triangles;
+        m_objet.triangle_count()
+        for(int i = 0; i < m_objet.vertex_count(); i++) {
+            Point a = m_objet.triangle(i).a;
+            Point b = m_objet.triangle(i).b;
+            Point c = m_objet.triangle(i).c;
+
+            Point p = Point((a.x + b.x + c.x) / 3.0, (a.y + b.y + c.y) / 3.0, (a.z + b.z + c.z) / 3.0);
+            if(p.x >= pMin.x && p.x <= pMax.x && p.y >= pMin.y && p.y <= pMax.y && p.z >= pMin.z && p.z <= pMax.z) {
+                triangles.push_back(i);
+            }
+        }
+        return triangles;
+    }*/
+
+    bool frustumCulling(Point pMin, Point pMax) {
+        // Faire la bounding box de l'objet
+        Point p000 = pMin, p111 = pMax;
         Point p001 = Point(p000.x, p000.y, p111.z);
         Point p010 = Point(p000.x, p111.y, p000.z);
         Point p011 = Point(p000.x, p111.y, p111.z);
@@ -254,7 +439,7 @@ public:
         Point boundingBox[8] = {p000, p001, p010, p011,p100, p101, p110, p111};
 
         // Passer ses coordonnées dans le repère projectif
-        Transform pvMatrix = camera().projection() * camera().view();
+        Transform pvMatrix = m_camera.projection() * m_camera.view();
         vec4 projectedBoundingBox[8];
         for(int i = 0; i < 8; i++) {
             projectedBoundingBox[i] = pvMatrix(boundingBox[i]);
@@ -262,7 +447,7 @@ public:
 
         // Faire le test des coordonnées pour savoir si l'objet est visible dans le repère projectif
         if(!isVisibleInProjectedSpace(projectedBoundingBox)) {
-            std::cout << "Cube non visible" << std::endl;
+            //std::cout << "Cube non visible" << std::endl;
             return false;
         }
 
@@ -274,7 +459,7 @@ public:
         }
 
         if(!isVisibleInObjectSpace(p000, p111, inverseBoundingBox)) {
-            std::cout << "Cube non visible" << std::endl;
+            //std::cout << "Cube non visible" << std::endl;
             return false;
         }
 
@@ -361,6 +546,60 @@ public:
         return true;
     }
 
+    void cameraUpdate() {
+
+        // recupere les mouvements de la souris
+        int mx, my;
+        unsigned int mb= SDL_GetRelativeMouseState(&mx, &my);
+        int mousex, mousey;
+        SDL_GetMouseState(&mousex, &mousey);
+        ImGuiIO& io = ImGui::GetIO();
+
+        // deplace la camera
+        if(!io.WantCaptureMouse && mb & SDL_BUTTON(1))
+            m_camera.rotation(mx, my);      // tourne autour de l'objet
+        else if(mb & SDL_BUTTON(3))
+            m_camera.translation((float) mx / (float) window_width(), (float) my / (float) window_height()); // deplace le point de rotation
+        else if(mb & SDL_BUTTON(2))
+            m_camera.move(mx);           // approche / eloigne l'objet
+
+        SDL_MouseWheelEvent wheel= wheel_event();
+        if(wheel.y != 0)
+        {
+            clear_wheel_event();
+            m_camera.move(8.f * wheel.y);  // approche / eloigne l'objet
+        }
+
+        const char *orbiter_filename= "app_orbiter.txt";
+        // copy / export / write orbiter
+        if(key_state('c'))
+        {
+            clear_key_state('c');
+            m_camera.write_orbiter(orbiter_filename);
+
+        }
+        // paste / read orbiter
+        if(key_state('v'))
+        {
+            clear_key_state('v');
+
+            Orbiter tmp;
+            if(tmp.read_orbiter(orbiter_filename) < 0)
+                // ne pas modifer la camera en cas d'erreur de lecture...
+                tmp= m_camera;
+
+            m_camera= tmp;
+        }
+
+        // screenshot
+        if(key_state('s'))
+        {
+            static int calls= 1;
+            clear_key_state('s');
+            screenshot("app", calls++);
+        }
+    }
+
     void handleKeys( )
     {
         if(key_state(SDLK_LEFT) || key_state(SDLK_q))
@@ -383,10 +622,16 @@ public:
         ImGui_ImplSdlGL3_NewFrame(m_window);
         ImGui::NewFrame();
 
+        m_cpu_stop= std::chrono::high_resolution_clock::now();
+        int cpu_time= std::chrono::duration_cast<std::chrono::microseconds>(m_cpu_stop - m_cpu_start).count();
+
         ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_NoMove);
         ImGui::Text("Application average %.1f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+        ImGui::Text("CPU  %02dms %03dus", cpu_time / 1000, cpu_time % 1000);
+        ImGui::Text("GPU  %02dms %03dus", int(m_frame_time / 1000000), int((m_frame_time / 1000) % 1000));
         ImGui::Spacing();
         ImGui::Checkbox("Demo Window", &show_demo_window);
+
         if (show_demo_window)
             ImGui::ShowDemoWindow(&show_demo_window);
 
@@ -412,13 +657,18 @@ public:
 protected:
     GLuint m_program;
     Mesh m_objet;
+    Transform m_position;
     Mesh m_repere;
     Mesh m_cube;
+    Mesh m_frustum;
     Buffers m_buffers;
+    ShadowMap m_shadow_map;
     std::vector<GLuint> m_textures;
     GLuint m_white_texture;
     std::vector<TriangleGroup> m_groups;
+    std::vector<std::pair<Point, Point>> blocs;
     int location;
+    Orbiter m_camera;
 
     // Imgui variables
     bool show_demo_window;

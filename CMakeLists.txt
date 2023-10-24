@@ -25,6 +25,13 @@ target_link_libraries(tuto_decal GL GLEW SDL2 SDL2_image)
 set_target_properties(tuto_decal PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
 set_target_properties(tuto_decal PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+
+add_executable(tuto_shadows "tutos/tuto_shadows.cpp" ${gkit_files} ${imgui_files})
+target_include_directories(tuto_shadows PUBLIC "src/gKit" "src/imgui")
+target_link_libraries(tuto_shadows GL GLEW SDL2 SDL2_image)
+set_target_properties(tuto_shadows PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+set_target_properties(tuto_shadows PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_executable(tp1 "src/tp/tp1.cpp" ${gkit_files} ${imgui_files})
 target_include_directories(tp1 PUBLIC "src/gKit" "src/imgui")
 target_link_libraries(tp1 GL GLEW SDL2 SDL2_image)

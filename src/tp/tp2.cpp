@@ -164,15 +164,15 @@ struct Buffers
 
 struct ShadowMap {
     GLuint framebuffer;
-    GLuint shadowMap;
+    GLuint texture;
 
-    ShadowMap( ) : framebuffer(0), shadowMap(0) {}
+    ShadowMap( ) : framebuffer(0), texture(0) {}
 
     void create( const int width, const int height )
     {
         // creer une texture pour contenir la shadow map
-        glGenTextures(1, &shadowMap);
-        glBindTexture(GL_TEXTURE_2D, shadowMap);
+        glGenTextures(1, &texture);
+        glBindTexture(GL_TEXTURE_2D, texture);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, width, height, 0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
 
         // parametres de filtrage et de "clamping" de la texture
@@ -185,7 +185,7 @@ struct ShadowMap {
         // creer un framebuffer pour contenir la shadow map
         glGenFramebuffers(1, &framebuffer);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer);
-        glFramebufferTexture(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, shadowMap, 0);
+        glFramebufferTexture(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, texture, 0);
 
         // ne pas oublier de verifier... (c'est trop souvent oublie)
         GLenum status= glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
@@ -195,16 +195,17 @@ struct ShadowMap {
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     }
 
-    void write()
-    {
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer);
-        glViewport(0, 0, 1024, 1024);
-        glClear(GL_DEPTH_BUFFER_BIT);
+    void clear_color(const Color & color) {
+        glClearColor(color.r, color.g, color.b, color.a);
+    }
+
+    void clear_depth(const float depth) {
+        glClearDepth(depth);
     }
 
     void release( )
     {
-        glDeleteTextures(1, &shadowMap);
+        glDeleteTextures(1, &texture);
         glDeleteFramebuffers(1, &framebuffer);
     }
 
@@ -253,6 +254,7 @@ public:
 
         m_position = Identity();
         m_repere= make_grid(10);
+        m_texture= read_texture(0, "../data/grid.png");
         m_cube = read_mesh("../data/cube.obj");
         if(m_cube.materials().count() == 0) return -1;
         if(!m_cube.vertex_count()) return -1;
@@ -286,13 +288,28 @@ public:
 
         m_groups = m_objet.groups();
 
-        // creer une shadow map
         m_shadow_map.create(1024, 1024);
+        m_shadow_map.clear_color(White());
+        m_shadow_map.clear_depth(1);
 
         m_buffers.create(m_objet);
 
-        m_program = read_program("../data/shaders/shader.glsl");
+        m_shadow_program= read_program("../data/shaders/draw_shadows.glsl");
+        program_print_errors(m_shadow_program);
+
+        m_program = read_program("../data/shaders/shader_tp2.glsl");
         program_print_errors(m_program);
+
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_shadow_map.framebuffer);
+        glFramebufferTexture(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, m_shadow_map.texture, 0);
+        GLenum status= glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+        if(status != GL_FRAMEBUFFER_COMPLETE)
+            printf("[error] framebuffer is not complete\n");
+
+        GLenum buffers[]= { GL_DEPTH_ATTACHMENT };
+        glDrawBuffers(0, buffers);
+
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 
         glClearColor(0.2f, 0.2f, 0.2f, 1.f);
         glClearDepth(1.f);
@@ -307,9 +324,16 @@ public:
         m_repere.release();
         m_objet.release();
         m_cube.release();
-        release_program(m_program);
+
         ImGui_ImplSdlGL3_Shutdown();
         ImGui::DestroyContext();
+
+        m_buffers.release();
+        m_shadow_map.release();
+
+        release_program(m_shadow_program);
+        release_program(m_program);
+
         return 0;
     }
 
@@ -318,8 +342,6 @@ public:
         cameraUpdate();
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        //draw(m_repere, Identity(), camera());
 
         scene_bistro();
 
@@ -336,7 +358,6 @@ public:
         Transform m= r * t;
 
         Transform decal_view= Inverse(m_position * m);
-        //~ Transform decal_projection= Perspective(35, 1, float(0.1), float(10));
         Transform decal_projection= Ortho(-2, 2, -2, 2, float(0.1), float(10));
 
         // transformations de la camera de l'application
@@ -345,26 +366,52 @@ public:
 
         if(key_state('e'))
         {
-            // change de point de vue
             view= decal_view;
             projection= decal_projection;
         }
 
-        Transform model= Identity() * Scale(objetScale);
 
+        // 1ère passse
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_shadow_map.framebuffer);
+        glViewport(0, 0, 1024, 1024);
+        glClear(GL_DEPTH_BUFFER_BIT);
+
+        glBindVertexArray(m_buffers.vao);
+        glUseProgram(m_shadow_program);
+        program_uniform(m_shadow_program, "mvpMatrix", decal_projection * decal_view);
+        m_objet.draw(m_shadow_program, true, false, false, false, false);
+
+
+        // 2ème passe
+
+        Transform model= Identity() * Scale(objetScale);
         Transform mvp= projection * view * model;
         Transform mv= view * model;
+
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        glViewport(0, 0, window_width(), window_height());
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        glBindTexture(GL_TEXTURE_2D, m_shadow_map.texture);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        glBindVertexArray(m_buffers.vao);
+        glUseProgram(m_program);
 
         if (key_state('r')) {
             Transform decal_m= Inverse(decal_projection * decal_view);
             draw(m_frustum, decal_m, view, projection);
         }
 
-        glUseProgram(m_program);
-
         program_uniform(m_program, "mvpMatrix", mvp);
         program_uniform(m_program, "mvMatrix", mv);
         program_uniform(m_program, "lightPosition", lightPosition);
+
+        Transform decal_viewport= Viewport(1, 1);
+        Transform decal= decal_viewport * decal_projection * decal_view;
+
+        program_uniform(m_program, "decalMatrix", decal);
+        program_use_texture(m_program, "texture", 0, m_shadow_map.texture);
 
         const Materials& materials= m_objet.materials();
         for(unsigned i= 0; i < m_groups.size(); i++)
@@ -383,6 +430,7 @@ public:
             m_objet.draw(m_groups[i].first, m_groups[i].n, m_program, true,
                          true, true, false, false);
         }
+
     }
 
     std::vector<std::pair<Point,Point>> blocDivision(Point pMin, Point pMax) {
@@ -632,6 +680,9 @@ public:
         ImGui::Spacing();
         ImGui::Checkbox("Demo Window", &show_demo_window);
 
+        ImVec2 texture_size(350, 350);  // You can adjust this size as per your requirements
+        ImGui::Image((void*)(intptr_t)m_shadow_map.texture, texture_size);
+
         if (show_demo_window)
             ImGui::ShowDemoWindow(&show_demo_window);
 
@@ -656,13 +707,15 @@ public:
 
 protected:
     GLuint m_program;
+    GLuint m_shadow_program;
+    ShadowMap m_shadow_map;
     Mesh m_objet;
     Transform m_position;
+    GLuint m_texture;
     Mesh m_repere;
     Mesh m_cube;
     Mesh m_frustum;
     Buffers m_buffers;
-    ShadowMap m_shadow_map;
     std::vector<GLuint> m_textures;
     GLuint m_white_texture;
     std::vector<TriangleGroup> m_groups;

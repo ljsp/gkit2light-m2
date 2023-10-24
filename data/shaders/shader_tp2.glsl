@@ -7,14 +7,17 @@ layout(location= 2) in vec3 normal;
 
 uniform mat4 mvpMatrix;
 uniform mat4 mvMatrix;
+uniform mat4 decalMatrix;
 
 out vec3 v_position;
 out vec2 v_texcoord;
 out vec3 v_normal;
+out vec4 v_decal_position;
 
 void main( )
 {
     gl_Position= mvpMatrix * vec4(position, 1);       // centre de la fenetre
+    v_decal_position= decalMatrix * vec4(position, 1); // position du fragment dans la texture
 
     v_position= vec3(mvMatrix * vec4(position, 1));
     v_texcoord= texcoord;
@@ -26,10 +29,12 @@ void main( )
 in vec3 v_position;
 in vec2 v_texcoord;
 in vec3 v_normal;
+in vec4 v_decal_position;
 
 uniform vec3 lightPosition;
 uniform vec4 material_color;
 uniform sampler2D material_texture;
+uniform sampler2D decal_texture;
 
 void main( )
 {
@@ -41,7 +46,15 @@ void main( )
         discard;
     }
 
-    gl_FragColor= tex * cos * material_color;
+    vec3 decal_texcoord = v_decal_position.xyz / v_decal_position.w;
+    //vec3 decal_color = texture(decal_texture, decal_texcoord.xy).rgb;
+    vec3 decal_color= textureProj(decal_texture, v_decal_position).rgb;
+
+    gl_FragColor= vec4(material_color.rgb * tex.rgb , 1) * cos;
+
+    //float depthValue = textureProj(decal_texture, v_decal_position).r;
+    //gl_FragColor = vec4(vec3(depthValue), 1.0);
+
 
 }
 #endif

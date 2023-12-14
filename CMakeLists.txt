@@ -25,12 +25,17 @@ target_link_libraries(tuto_decal GL GLEW SDL2 SDL2_image)
 set_target_properties(tuto_decal PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
 set_target_properties(tuto_decal PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
-
 add_executable(tuto_shadows "tutos/tuto_shadows.cpp" ${gkit_files} ${imgui_files})
 target_include_directories(tuto_shadows PUBLIC "src/gKit" "src/imgui")
 target_link_libraries(tuto_shadows GL GLEW SDL2 SDL2_image)
 set_target_properties(tuto_shadows PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
 set_target_properties(tuto_shadows PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_executable(tuto_mdi "tutos/M2/tuto_mdi.cpp" ${gkit_files} ${imgui_files})
+target_include_directories(tuto_mdi PUBLIC "src/gKit" "src/imgui")
+target_link_libraries(tuto_mdi GL GLEW SDL2 SDL2_image)
+set_target_properties(tuto_mdi PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+set_target_properties(tuto_mdi PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
 add_executable(tp1 "src/tp/tp1.cpp" ${gkit_files} ${imgui_files})
 target_include_directories(tp1 PUBLIC "src/gKit" "src/imgui")
@@ -50,10 +55,28 @@ target_link_libraries(tp3 GL GLEW SDL2 SDL2_image)
 set_target_properties(tp3 PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
 set_target_properties(tp3 PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
+add_executable(tp4 "src/tp/tp4.cpp" ${gkit_files} ${imgui_files})
+target_include_directories(tp4 PUBLIC "src/gKit" "src/imgui")
+target_link_libraries(tp4 GL GLEW SDL2 SDL2_image)
+set_target_properties(tp4 PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+set_target_properties(tp4 PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_executable(tp5 "src/tp/tp5.cpp" ${gkit_files} ${imgui_files})
+target_include_directories(tp5 PUBLIC "src/gKit" "src/imgui")
+target_link_libraries(tp5 GL GLEW SDL2 SDL2_image)
+set_target_properties(tp5 PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+set_target_properties(tp5 PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 add_executable(shader_kit "src/shader_kit.cpp" ${gkit_files} ${imgui_files})
 target_include_directories(shader_kit PUBLIC "src/gKit" "src/imgui")
 target_link_libraries(shader_kit GL GLEW SDL2 SDL2_image)
 set_target_properties(shader_kit PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
 set_target_properties(shader_kit PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_executable(tp_bezier "src/surfaceDeformation/tp2.cpp" ${gkit_files} ${imgui_files})
+target_include_directories(tp_bezier PUBLIC "src/gKit" "src/surfaceDeformation" "src/imgui")
+target_link_libraries(tp_bezier GL GLEW SDL2 SDL2_image)
+set_target_properties(tp_bezier PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+set_target_properties(tp_bezier PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
 

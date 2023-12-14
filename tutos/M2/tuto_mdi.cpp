@@ -16,6 +16,9 @@
 #include "app.h"
 #include "text.h"
 
+#include "imgui.h"
+#include "imgui_impl_sdl_gl3.h"
+
 
 // representation des parametres 
 struct IndirectParam
@@ -35,12 +38,18 @@ public:
     
     int init( )
     {
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        ImGui::StyleColorsDark();
+        ImGui_ImplSdlGL3_Init(m_window, "#version 330");
+
+
         //  verifie l'existence des extensions
         if(!GLEW_ARB_shader_draw_parameters)
             return -1;
         printf("GL_ARB_shader_draw_parameters ON\n");
             
-        m_objet= read_mesh("data/bigguy.obj");
+        m_objet= read_mesh("../data/bigguy.obj");
         Point pmin, pmax;
         m_objet.bounds(pmin, pmax);
         
@@ -69,10 +78,10 @@ public:
         m_vao= m_objet.create_buffers(/* texcoord */ false, /* normal */ false, /* color */ false, /* material */ false);
         
         // shader programs
-        m_program_direct= read_program("tutos/M2/indirect_direct.glsl");        // affichage classique N draws
+        m_program_direct= read_program("../tutos/M2/indirect_direct.glsl");        // affichage classique N draws
         program_print_errors(m_program_direct);
         
-        m_program= read_program("tutos/M2/indirect.glsl");      // affichage indirect 1 multi draw
+        m_program= read_program("../tutos/M2/indirect.glsl");      // affichage indirect 1 multi draw
         program_print_errors(m_program);
         
         // affichage du temps cpu / gpu
@@ -99,6 +108,9 @@ public:
         release_program(m_program);
         m_objet.release();
         glDeleteBuffers(1, &m_indirect_buffer);
+
+        ImGui_ImplSdlGL3_Shutdown();
+        ImGui::DestroyContext();
         
         return 0;
     }
@@ -127,7 +139,7 @@ public:
         glBeginQuery(GL_TIME_ELAPSED, m_time_query);    // pour le gpu
         std::chrono::high_resolution_clock::time_point cpu_start= std::chrono::high_resolution_clock::now();    // pour le cpu
         
-    #if 0
+    #if 1
         // dessine n copies de l'objet avec 1 glDrawArrays par copie
         glBindVertexArray(m_vao);
         glUseProgram(m_program_direct);

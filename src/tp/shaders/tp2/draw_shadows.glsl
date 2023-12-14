@@ -13,10 +13,9 @@ void main( )
 #endif
 
 #ifdef FRAGMENT_SHADER
-out vec4 fragment_color;
 
 void main( )
 {
-    fragment_color= vec4(0,0,0, 1); // dessine l'objet en noir
+    gl_FragColor= vec4(0,0,0, 1); // dessine l'objet en noir
 }
 #endif

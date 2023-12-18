@@ -158,7 +158,7 @@ public:
         m_decal_program= read_program("../tutos/draw_decal.glsl");
         program_print_errors(m_decal_program);
         
-        m_shadow_program= read_program("../tutos/toonShader.glsl");
+        m_shadow_program= read_program("../tutos/decal.glsl");
         program_print_errors(m_shadow_program);
         
         // position initiale de l'objet

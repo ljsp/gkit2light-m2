@@ -38,28 +38,23 @@ uniform sampler2D decal_texture;
 
 void main( )
 {
-    vec3 rayDirection = lightPosition - v_position;
-    float cos = dot(normalize(v_normal), normalize(rayDirection));
+    //vec3 rayDirection = lightPosition - v_position;
+    //float cos = dot(normalize(v_normal), normalize(rayDirection));
 
+    /*
     vec4 tex = texture(material_texture, v_texcoord);
     if(tex.a < 0.5) {
         discard;
     }
+    */
 
 
-    //vec3 decal_color = texture(decal_texture, decal_texcoord.xy).rgb;
-    vec3 decal_depth = textureProj(decal_texture, v_decal_position).rgb;
+    //vec3 texcoord= v_decal_position.xyz / v_decal_position.w;
+    //vec3 decal_color= texture(decal_texture, texcoord.xy).rgb;
 
-    if(decal_depth.r < v_decal_position.z) {
-        discard;
-    }
+    vec3 decal_color= textureProj(decal_texture, v_decal_position).rgb;
 
-    gl_FragColor= vec4(material_color.rgb * tex.rgb , 1) * cos;
-
-    //float depthValue = textureProj(decal_texture, v_decal_position).r;
-    //gl_FragColor = vec4(vec3(depthValue), 1.0);
-
-
+    gl_FragColor = vec4(material_color.rgb * decal_color.r, 1);
 }
 #endif
 

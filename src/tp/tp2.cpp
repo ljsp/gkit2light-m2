@@ -16,6 +16,7 @@
 #include "imgui.h"
 #include "imgui_impl_sdl_gl3.h"
 #include "app_time.h"
+#include "framebuffer.h"
 
 class TP : public AppTime
 {
@@ -24,30 +25,23 @@ public:
 
     int init( )
     {
+        // init GUI
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
         ImGui::StyleColorsDark();
         ImGui_ImplSdlGL3_Init(m_window, "#version 330");
 
-        m_camera.projection(window_width(), window_height(), 45);
-
         show_demo_window = false;
         lightPosition= Point(0, 10, 10);
-        objetPosition= Point(1, 0, 0);
-        objectRotation = 0;
-        objetScale = 0.5f;
+        objetScale = 0.1f;
+
+        // init Scene
+        m_camera.projection(window_width(), window_height(), 45);
 
         m_position = Identity();
-        m_repere= make_grid(10);
-        m_texture= read_texture(0, "../data/grid.png");
-        m_ground= make_ground(20);
-        m_cube = read_mesh("../data/cube.obj");
-        if(m_cube.materials().count() == 0) return -1;
-        if(!m_cube.vertex_count()) return -1;
         m_frustum = make_frustum();
 
         m_objet = read_mesh("../data/bistro-small/export.obj");
-        //m_objet = read_mesh("../data/robot.obj");
         if(m_objet.materials().count() == 0) return -1;
         if(!m_objet.vertex_count()) return -1;
         Materials& materials= m_objet.materials();
@@ -61,11 +55,13 @@ public:
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, 8);
             }
-
             printf("%d textures.\n", materials.filename_count());
         }
+        m_groups = m_objet.groups();
+        m_buffers.create(m_objet);
 
-        m_white_texture= read_texture(0, "../data/blanc.jpg");  // !! utiliser une vraie image blanche...
+        m_white_texture= read_texture(0, "../data/blanc.jpg");
+
         // Faire la bounding box de l'objet
         //Point pMin, pMax;
         //m_objet.bounds(pMin, pMax);
@@ -73,21 +69,26 @@ public:
         //memset(partition, 0, sizeof(partition));
         //blocs = blocDivision(pMin, pMax);
 
-        m_groups = m_objet.groups();
+        Point pmin, pmax;
+        m_objet.bounds(pmin, pmax);
+        // parametrer la camera de l'application, renvoyee par la fonction camera()
+        m_camera.lookat(pmin, pmax);
+
+        m_framebuffer.create(1024, 1024);
+        m_framebuffer.clear_color(White());
+        m_framebuffer.clear_depth(1);
 
         m_shadow_map.create(1024, 1024);
         m_shadow_map.clear_color(White());
         m_shadow_map.clear_depth(1);
 
-        m_buffers.create(m_objet);
-
-        m_shadow_program= read_program("../src/tp/shaders/tp2/draw_shadows.glsl");
+        m_shadow_program= read_program("../src/tp/shaders/tp2/depth_shader.glsl");
         program_print_errors(m_shadow_program);
 
         m_program = read_program("../src/tp/shaders/tp2/shader.glsl");
-        //m_program = read_program("../data/shaders/decal.glsl");
         program_print_errors(m_program);
 
+        /*
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_shadow_map.framebuffer);
         glFramebufferTexture(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, m_shadow_map.texture, 0);
         GLenum status= glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
@@ -98,6 +99,7 @@ public:
         glDrawBuffers(0, buffers);
 
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+        */
 
         glClearColor(0.2f, 0.2f, 0.2f, 1.f);
         glClearDepth(1.f);
@@ -109,16 +111,16 @@ public:
 
     int quit( )
     {
-        m_repere.release();
-        m_objet.release();
-        m_cube.release();
-        m_ground.release();
-
         ImGui_ImplSdlGL3_Shutdown();
         ImGui::DestroyContext();
 
+        m_objet.release();
+        m_frustum.release();
+
         m_buffers.release();
         m_shadow_map.release();
+
+        m_framebuffer.release();
 
         release_program(m_shadow_program);
         release_program(m_program);
@@ -143,13 +145,12 @@ public:
 
     void scene_bistro() {
         Transform r= RotationX(-90);
-        Transform t= Translation(0,0, 8);
+        Transform t= Translation(0,0, 45);
         Transform m= r * t;
 
         Transform decal_view= Inverse(m_position * m);
-        Transform decal_projection= Ortho(-2, 2, -2, 2, float(0.1), float(10));
+        Transform decal_projection= Ortho(-20, 20, -20, 20, float(0.1), float(45));
 
-        // transformations de la camera de l'application
         Transform view= m_camera.view();
         Transform projection= m_camera.projection();
 
@@ -159,6 +160,16 @@ public:
             projection= decal_projection;
         }
 
+        // 1ère passe test
+        m_framebuffer.bind(m_shadow_program, true, true, false, false,false, false);
+        {
+            glUseProgram(m_shadow_program);
+
+            program_uniform(m_shadow_program, "mvpMatrix", decal_projection * decal_view);
+
+            m_objet.draw(m_shadow_program,  true, false, false, false, false);
+        }
+        m_framebuffer.unbind(window_width(), window_height());
 
         // 1ère passse
 
@@ -172,10 +183,6 @@ public:
         m_objet.draw(m_shadow_program, true, false, false, false, false);
 
         // 2ème passe
-        Transform model= Identity() * Scale(objetScale);
-        Transform mvp= projection * view * model;
-        Transform mv= view * model;
-
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
         glViewport(0, 0, window_width(), window_height());
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -184,21 +191,21 @@ public:
         glGenerateMipmap(GL_TEXTURE_2D);
 
         glBindVertexArray(m_buffers.vao);
+
         glUseProgram(m_program);
 
-        if (key_state('r')) {
-            Transform decal_m= Inverse(decal_projection * decal_view);
-            draw(m_frustum, decal_m, view, projection);
-        }
-
+        Transform model= Identity();
+        Transform mvp= projection * view * model;
+        Transform mv= view * model;
         Transform decal_viewport= Viewport(1, 1);
         Transform decal= decal_viewport * decal_projection * decal_view;
 
         program_uniform(m_program, "mvpMatrix", mvp);
         program_uniform(m_program, "mvMatrix", mv);
-        program_uniform(m_program, "lightPosition", lightPosition);
         program_uniform(m_program, "decalMatrix", decal);
         program_use_texture(m_program, "decal_texture", 0, m_shadow_map.texture);
+        // Utiliser le frameBuffer de gKit
+        //m_framebuffer.use_color_texture(m_program, "decal_texture", 0);
 
         const Materials& materials= m_objet.materials();
 
@@ -219,6 +226,17 @@ public:
 
             m_objet.draw(m_groups[i].first, m_groups[i].n, m_program, true, true, true, false, false);
         }
+
+        m_framebuffer.unbind_textures();
+
+        if (key_state('r')) {
+            Transform decal_m= Inverse(decal_projection * decal_view);
+            draw(m_frustum, decal_m, view, projection);
+        }
+
+        // Afficher le frameBuffer de gKit
+        //m_framebuffer.blit_color(0, 0, 256, 256);
+
     }
 
     void cameraUpdate() {
@@ -313,19 +331,12 @@ public:
         if (show_demo_window)
             ImGui::ShowDemoWindow(&show_demo_window);
 
+        /*
         ImGui::SeparatorText("Light Position");
         ImGui::SliderFloat("light x", &lightPosition.x, -10.0f, 10.0f);
         ImGui::SliderFloat("light y", &lightPosition.y, -10.0f, 10.0f);
         ImGui::SliderFloat("light z", &lightPosition.z, -10.0f, 10.0f);
-
-        ImGui::SeparatorText("Model Position");
-        ImGui::SliderFloat("x", &objetPosition.x, -10.0f, 10.0f);
-        ImGui::SliderFloat("y", &objetPosition.y, -10.0f, 10.0f);
-        ImGui::SliderFloat("z", &objetPosition.z, -10.0f, 10.0f);
-        ImGui::SliderFloat("rotation", &objectRotation, -180.0f, 180.0f, "%.3f");
-
-        ImGui::SeparatorText("Model Scale");
-        ImGui::SliderFloat("scale", &objetScale, 0.0f, 5.0f, "%.3f");
+        */
 
         ImGui::End();
         ImGui::Render();
@@ -335,27 +346,24 @@ public:
 protected:
     GLuint m_program;
     GLuint m_shadow_program;
-    ShadowMap m_shadow_map;
-    Mesh m_objet;
-    Transform m_position;
-    GLuint m_texture;
-    Mesh m_repere;
-    Mesh m_cube;
-    Mesh m_ground;
-    Mesh m_frustum;
-    Buffers m_buffers;
-    std::vector<GLuint> m_textures;
     GLuint m_white_texture;
+    Mesh m_frustum;
+    Mesh m_objet;
+    Buffers m_buffers;
+    ShadowMap m_shadow_map;
+
+    Framebuffer m_framebuffer;
+
+    Transform m_position;
+    std::vector<GLuint> m_textures;
     std::vector<TriangleGroup> m_groups;
     std::vector<std::pair<Point, Point>> blocs;
-    int location;
     Orbiter m_camera;
 
+protected:
     // Imgui variables
     bool show_demo_window;
     Point lightPosition;
-    Point objetPosition;
-    float objectRotation;
     float objetScale;
 };
 

@@ -31,7 +31,6 @@ in vec2 v_texcoord;
 in vec3 v_normal;
 in vec4 v_decal_position;
 
-uniform vec3 lightPosition;
 uniform vec4 material_color;
 uniform sampler2D material_texture;
 uniform sampler2D decal_texture;
@@ -41,20 +40,17 @@ void main( )
     //vec3 rayDirection = lightPosition - v_position;
     //float cos = dot(normalize(v_normal), normalize(rayDirection));
 
-    /*
     vec4 tex = texture(material_texture, v_texcoord);
     if(tex.a < 0.5) {
         discard;
     }
-    */
-
 
     //vec3 texcoord= v_decal_position.xyz / v_decal_position.w;
     //vec3 decal_color= texture(decal_texture, texcoord.xy).rgb;
 
     vec3 decal_color= textureProj(decal_texture, v_decal_position).rgb;
 
-    gl_FragColor = vec4(material_color.rgb * decal_color.r, 1);
+    gl_FragColor = vec4(material_color.rgb * tex.rgb * decal_color.r, 1);
 }
 #endif
 

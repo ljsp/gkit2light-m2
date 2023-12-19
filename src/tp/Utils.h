@@ -237,28 +237,10 @@ BBox EmptyBox( )
 }
 
 std::vector<std::pair<Point,Point>> blocDivision(Point pMin, Point pMax) {
+    // Trouver l'axe le plus long
+    // Faire la division sur cet axe
 
-    // Trouver les coordonnées médianes
-    float midX = (pMin.x + pMax.x) / 2.0;
-    float midY = (pMin.y + pMax.y) / 2.0;
-    float midZ = (pMin.z + pMax.z) / 2.0;
 
-    // Diviser la bounding box en 8 sous-boxes
-    std::vector<std::pair<Point, Point>> blocs;
-
-    // Bloc du bas
-    blocs.emplace_back(pMin, Point(midX, midY, midZ));
-    blocs.emplace_back(Point(midX, pMin.y, pMin.z), Point(pMax.x, midY, midZ));
-    blocs.emplace_back(Point(pMin.x, midY, pMin.z), Point(midX, pMax.y, midZ));
-    blocs.emplace_back(Point(midX, midY, pMin.z), Point(pMax.x, pMax.y, midZ));
-
-    // Bloc du haut
-    blocs.emplace_back(Point(pMin.x, pMin.y, midZ), Point(midX, midY, pMax.z));
-    blocs.emplace_back(Point(midX, pMin.y, midZ), Point(pMax.x, midY, pMax.z));
-    blocs.emplace_back(Point(pMin.x, midY, midZ), Point(midX, pMax.y, pMax.z));
-    blocs.emplace_back(Point(midX, midY, midZ), pMax);
-
-    return blocs;
 }
 
 /*std::vector<unsigned> splitBox(std::pair<Point, Point> box,  ) {

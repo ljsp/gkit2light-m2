@@ -68,6 +68,7 @@ public:
         //unsigned partition[m_objet.triangle_count()];
         //memset(partition, 0, sizeof(partition));
         //blocs = blocDivision(pMin, pMax);
+        // https://forge.univ-lyon1.fr/m1if27/bvh-etu
 
         Point pmin, pmax;
         m_objet.bounds(pmin, pmax);
@@ -203,7 +204,7 @@ public:
         program_uniform(m_program, "mvpMatrix", mvp);
         program_uniform(m_program, "mvMatrix", mv);
         program_uniform(m_program, "decalMatrix", decal);
-        program_use_texture(m_program, "decal_texture", 0, m_shadow_map.texture);
+        program_use_texture(m_program, "decal_texture", 1, m_shadow_map.texture);
         // Utiliser le frameBuffer de gKit
         //m_framebuffer.use_color_texture(m_program, "decal_texture", 0);
 
@@ -211,6 +212,8 @@ public:
 
         for(unsigned i= 0; i < m_groups.size(); i++)
         {
+            // Faire frustum culling des blocs
+
             const Material& material= materials(m_groups[i].index);
 
             program_uniform(m_program, "material_color", material.diffuse);
@@ -221,8 +224,6 @@ public:
             else {
                 program_use_texture(m_program, "material_texture", 0, m_white_texture);
             }
-
-            // Faire frustum culling des blocs
 
             m_objet.draw(m_groups[i].first, m_groups[i].n, m_program, true, true, true, false, false);
         }

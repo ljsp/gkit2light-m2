@@ -379,4 +379,60 @@ bool frustumCulling(Point pMin, Point pMax, Orbiter m_camera) {
     return true;
 }
 
+GLuint make_texture_array( const int unit, const std::vector<ImageData>& images, const GLenum texel_format= GL_RGBA )
+{
+    assert(images.size());
+    assert(images[0].pixels.size());
+
+    // verifie que toutes les images sont au meme format
+    int w= images[0].width;
+    int h= images[0].height;
+    int d= int(images.size());
+
+    for(unsigned i= 1; i < images.size(); i++)
+    {
+        if(images[i].pixels.size() == 0)
+            continue;     // pas de pixels, image pas chargee ?
+
+        if(images[i].width != w)
+            return 0;   //  pas la meme largeur
+        if(images[i].height != h)
+            return 0;   // pas la meme hauteur
+    }
+
+    // alloue le tableau de textures
+    GLuint texture= 0;
+    glGenTextures(1, &texture);
+    glActiveTexture(GL_TEXTURE0 + unit);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
+
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, /* mipmap */ 0,
+                 texel_format, w, h, d, /* border */ 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+    // transfere les textures
+    for(unsigned i= 0; i < images.size(); i++)
+    {
+        if(images[i].pixels.size() == 0)
+            continue;
+
+        // recupere les parametres de conversion...
+        GLenum format = GL_RGB;
+        if(images[i].channels == 4)
+            format= GL_RGBA;
+
+        glTexSubImage3D(GL_TEXTURE_2D_ARRAY, /* mipmap */ 0,
+                /* x offset */ 0, /* y offset */ 0, /* z offset == index */ i,
+                        w, h, 1,
+                        format, GL_UNSIGNED_BYTE, images[i].pixels.data());
+    }
+
+    // mipmaps
+    glGenerateMipmap(GL_TEXTURE_2D_ARRAY);
+
+    printf("texture array: %dx%dx%d %dMo\n", w, h, d, 4*w*h*d / 1024 / 1024);
+    return texture;
+}
+
+
 #endif //GKIT2LIGHT_UTILS_H

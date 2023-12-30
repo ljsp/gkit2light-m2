@@ -33,6 +33,8 @@ public:
 
         show_demo_window = false;
         lightPosition= Point(0, 10, 10);
+        shadowLightPosition = Point(0,0,45);
+        shadowLightRotation = Point(-90, 0, 0);
         objetScale = 0.1f;
 
         // init Scene
@@ -45,6 +47,7 @@ public:
         if(m_objet.materials().count() == 0) return -1;
         if(!m_objet.vertex_count()) return -1;
         Materials& materials= m_objet.materials();
+
         m_textures.resize(materials.filename_count(), 0);
         {
             for(unsigned i= 0; i < m_textures.size(); i++)
@@ -79,7 +82,7 @@ public:
         m_framebuffer.clear_color(White());
         m_framebuffer.clear_depth(1);
 
-        m_shadow_map.create(1024, 1024);
+        m_shadow_map.create(4096, 4096);
         m_shadow_map.clear_color(White());
         m_shadow_map.clear_depth(1);
 
@@ -145,12 +148,17 @@ public:
     }
 
     void scene_bistro() {
-        Transform r= RotationX(-90);
-        Transform t= Translation(0,0, 45);
+        Transform r= RotationX(shadowLightRotation.x) *
+                     RotationY(shadowLightRotation.y) *
+                     RotationZ(shadowLightRotation.z);
+
+        Transform t= Translation(shadowLightPosition.x,
+                                 shadowLightPosition.y,
+                                 shadowLightPosition.z);
         Transform m= r * t;
 
         Transform decal_view= Inverse(m_position * m);
-        Transform decal_projection= Ortho(-20, 20, -20, 20, float(0.1), float(45));
+        Transform decal_projection= Ortho(-20, 20, -20, 20, float(0.1), float(75));
 
         Transform view= m_camera.view();
         Transform projection= m_camera.projection();
@@ -175,7 +183,7 @@ public:
         // 1ère passse
 
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_shadow_map.framebuffer);
-        glViewport(0, 0, 1024, 1024);
+        glViewport(0, 0, 4096, 4096);
         glClear(GL_DEPTH_BUFFER_BIT);
 
         glBindVertexArray(m_buffers.vao);
@@ -204,6 +212,7 @@ public:
         program_uniform(m_program, "mvpMatrix", mvp);
         program_uniform(m_program, "mvMatrix", mv);
         program_uniform(m_program, "decalMatrix", decal);
+        program_uniform(m_program, "lightPosition", lightPosition);
         program_use_texture(m_program, "decal_texture", 1, m_shadow_map.texture);
         // Utiliser le frameBuffer de gKit
         //m_framebuffer.use_color_texture(m_program, "decal_texture", 0);
@@ -332,12 +341,20 @@ public:
         if (show_demo_window)
             ImGui::ShowDemoWindow(&show_demo_window);
 
-        /*
-        ImGui::SeparatorText("Light Position");
-        ImGui::SliderFloat("light x", &lightPosition.x, -10.0f, 10.0f);
-        ImGui::SliderFloat("light y", &lightPosition.y, -10.0f, 10.0f);
-        ImGui::SliderFloat("light z", &lightPosition.z, -10.0f, 10.0f);
-        */
+
+        ImGui::SeparatorText("Ambient Light Position");
+        ImGui::SliderFloat("Pos x", &lightPosition.x, -10.0f, 10.0f);
+        ImGui::SliderFloat("Pos y", &lightPosition.y, -10.0f, 10.0f);
+        ImGui::SliderFloat("Pos z", &lightPosition.z, -10.0f, 10.0f);
+
+        ImGui::SeparatorText("Shadow Light Position");
+        ImGui::SliderFloat("Shadow Pos x", &shadowLightPosition.x, -100.0f, 100.0f);
+        ImGui::SliderFloat("Shadow Pos y", &shadowLightPosition.y, -100.0f, 100.0f);
+        ImGui::SliderFloat("Shadow Pos z", &shadowLightPosition.z, -100.0f, 100.0f);
+        ImGui::SliderFloat("Rot x", &shadowLightRotation.x, -180.0f, 180.0f);
+        ImGui::SliderFloat("Rot y", &shadowLightRotation.y, -180.0f, 180.0f);
+        ImGui::SliderFloat("Rot z", &shadowLightRotation.z, -180.0f, 180.0f);
+
 
         ImGui::End();
         ImGui::Render();
@@ -365,6 +382,8 @@ protected:
     // Imgui variables
     bool show_demo_window;
     Point lightPosition;
+    Point shadowLightPosition;
+    Point shadowLightRotation;
     float objetScale;
 };
 

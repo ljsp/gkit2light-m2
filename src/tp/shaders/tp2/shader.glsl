@@ -38,6 +38,7 @@ uniform vec3 lightPosition;
 
 void main( )
 {
+    // Light
     vec3 rayDirection = lightPosition - v_position;
     float cos = dot(normalize(v_normal), normalize(rayDirection));
 
@@ -46,12 +47,27 @@ void main( )
         discard;
     }
 
-    //vec3 texcoord= v_decal_position.xyz / v_decal_position.w;
-    //vec3 decal_color= texture(decal_texture, texcoord.xy).rgb;
+    // Shadows
+    vec3 texcoord = v_decal_position.xyz / v_decal_position.w;
+    float shadowDepth = texture(decal_texture, texcoord.xy).r;
+    //vec3 decal_color= textureProj(decal_texture, v_decal_position).rgb;
 
-    vec3 decal_color= textureProj(decal_texture, v_decal_position).rgb;
 
-    gl_FragColor = vec4(material_color.rgb * tex.rgb * decal_color.r, 1) * cos;
+    // Hard shadows
+    float shadow = 0.0;
+    //shadow = texcoord.z - 0.005 > shadowDepth ? 0.3 : 1.0;
+
+    // PCF
+    vec2 texelSize = 1.0 / textureSize(decal_texture, 0);
+    for(int x = -1; x <= 1; ++x ) {
+        for (int y = -1; y <= 1; ++y) {
+            float pcfDepth = texture(decal_texture, texcoord.xy + vec2(x,y) * texelSize).r;
+            shadow += texcoord.z - 0.005 > pcfDepth ? 0.3 : 1.0;
+        }
+    }
+    shadow /= 9.0;
+
+    gl_FragColor = vec4(material_color.rgb * tex.rgb * shadow, 1) * cos;
 }
 #endif
 

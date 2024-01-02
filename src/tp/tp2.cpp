@@ -82,7 +82,7 @@ public:
         m_framebuffer.clear_color(White());
         m_framebuffer.clear_depth(1);
 
-        m_shadow_map.create(4096, 4096);
+        m_shadow_map.create(1024, 1024);
         m_shadow_map.clear_color(White());
         m_shadow_map.clear_depth(1);
 
@@ -183,7 +183,7 @@ public:
         // 1ère passse
 
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_shadow_map.framebuffer);
-        glViewport(0, 0, 4096, 4096);
+        glViewport(0, 0, 1024, 1024);
         glClear(GL_DEPTH_BUFFER_BIT);
 
         glBindVertexArray(m_buffers.vao);
@@ -335,7 +335,7 @@ public:
         ImGui::Spacing();
         ImGui::Checkbox("Demo Window", &show_demo_window);
 
-        ImVec2 texture_size(350, 350);  // You can adjust this size as per your requirements
+        ImVec2 texture_size(350, 350);
         ImGui::Image((void*)(intptr_t)m_shadow_map.texture, texture_size);
 
         if (show_demo_window)

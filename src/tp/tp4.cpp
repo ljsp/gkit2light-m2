@@ -2,11 +2,8 @@
 // Created by lucas on 21/11/23.
 //
 
-
-//! \file tuto_compute_buffer.cpp compute shader + buffers
-
 #include <vector>
-
+#include <chrono>
 #include "app.h"
 #include "program.h"
 #include "uniforms.h"
@@ -32,26 +29,14 @@ public:
         m_program= read_program("../src/tp/shaders/tp4/compute_buffer2.glsl");
         program_print_errors(m_program);
 
-        // initialise un tableau de valeurs
-        m_data= std::vector<int>(1024);
-
-        // cree les buffers pour les parametres du shader
-        glGenBuffers(1, &m_gpu_buffer1);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_gpu_buffer1);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(int) * m_data.size(), m_data.data(), GL_STATIC_COPY);
-
-        // buffer resultat, meme taille, mais pas de donnees...
-        glGenBuffers(1, &m_gpu_buffer2);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, m_gpu_buffer2);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(int) * m_data.size(), nullptr, GL_STATIC_COPY);
         return 0;
     }
 
     int quit( )
     {
         release_program(m_program);
-        glDeleteBuffers(1, &m_gpu_buffer1);
-        glDeleteBuffers(1, &m_gpu_buffer2);
+        glDeleteBuffers(1, &m_read_buffer);
+        glDeleteBuffers(1, &m_write_buffer);
 
         ImGui_ImplSdlGL3_Shutdown();
         ImGui::DestroyContext();
@@ -59,10 +44,25 @@ public:
         return 0;
     }
 
-    int render( )
+    void ajouteCPU( const int value, const std::vector<int>& entree, std::vector<int>& sortie )
     {
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_gpu_buffer1);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, m_gpu_buffer2);
+        sortie.resize(entree.size());
+        for(unsigned i= 0; i < entree.size(); i++) {
+            sortie[i]= entree[i] + value;
+        }
+    }
+
+    void ajouteGPU( const int value, const std::vector<int>& entree, std::vector<int>& sortie )
+    {
+        // cree les buffers pour les parametres du shader
+        glGenBuffers(1, &m_read_buffer);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_read_buffer);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(int) * entree.size(), entree.data(), GL_STATIC_COPY);
+
+        // buffer resultat, meme taille, mais pas de donnees...
+        glGenBuffers(1, &m_write_buffer);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, m_write_buffer);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(int) * entree.size(), nullptr, GL_STATIC_COPY);
 
         // execute les shaders
         glUseProgram(m_program);
@@ -71,11 +71,10 @@ public:
         int threads[3]= {};
         glGetProgramiv(m_program, GL_COMPUTE_WORK_GROUP_SIZE, threads);
 
-        int n= m_data.size() / threads[0];
-        if(m_data.size() % threads[0])
+        int n = m_data.size() / threads[0];
+        if(m_data.size() % threads[0]) {
             n++;
-
-        int value = 12;
+        }
 
         program_uniform(m_program, "value", value);
 
@@ -86,21 +85,45 @@ public:
         glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT);
 
         // relire le resultat
-        std::vector<int> tmp(1024);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_gpu_buffer2);
-        glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int) * tmp.size(), tmp.data());
+        sortie.resize(entree.size());
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_write_buffer);
+        glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(int) * sortie.size(), sortie.data());
+    }
 
-        for(unsigned i= 0; i < tmp.size(); i++)
+    int render( )
+    {
+        int value = 15;
+        m_data = std::vector<int>(1024);
+        std::vector<int> tmp, tmp2;
+
+        auto beg = std::chrono::high_resolution_clock::now();
+        ajouteCPU(value, m_data, tmp);
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - beg;
+        printf("CPU: %f\n", elapsed.count());
+
+        beg = std::chrono::high_resolution_clock::now();
+        ajouteGPU(value, m_data, tmp2);
+        end = std::chrono::high_resolution_clock::now();
+        elapsed = end - beg;
+        printf("GPU: %f\n", elapsed.count());
+
+        for(unsigned i= 0; i < tmp.size(); i++) {
             printf("%d ", tmp[i]);
+        }
+        printf("\n");
+
+        for(unsigned i= 0; i < tmp2.size(); i++) {
+            printf("%d ", tmp2[i]);
+        }
         printf("\n");
 
         return 0;
     }
 
     std::vector<int> m_data;
-    GLuint m_gpu_buffer1;
-    GLuint m_gpu_buffer2;
     GLuint m_read_buffer;
+    GLuint m_write_buffer;
     GLuint m_program;
 };
 

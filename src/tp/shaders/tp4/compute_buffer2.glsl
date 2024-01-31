@@ -5,26 +5,25 @@
 
 #ifdef COMPUTE_SHADER
 
-layout( std430, binding= 0 ) buffer inputData
+layout( std430, binding= 0 ) readonly buffer inputData
 {
-    int a[];
+    int dataIn[];
 };
 
-layout( std430, binding= 1 ) buffer outputData
+layout( std430, binding= 1 ) writeonly buffer outputData
 {
-    int b[];
+    int dataOut[];
 };
 
 layout( local_size_x=256 ) in;
 
 uniform int value;
-int treshold = 10;
 
 void main( )
 {
     uint ID= gl_GlobalInvocationID.x;
-    if(ID < a.length() && a[ID] > treshold)
-        b[ID]= a[ID] + value;
+    if(ID < dataIn.length())
+        dataOut[ID]= dataIn[ID] + value;
 }
 
 #endif

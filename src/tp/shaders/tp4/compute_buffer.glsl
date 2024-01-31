@@ -22,8 +22,9 @@ uniform int value;
 void main( )
 {
 	uint ID= gl_GlobalInvocationID.x;
-	if(ID < a.length())
+	if(ID < a.length()) {
 		b[ID]= a[ID] + value;
+	}
 }
 
 #endif

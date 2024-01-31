@@ -7,7 +7,9 @@
 
 #include "mesh.h"
 #include "orbiter.h"
+#include <limits>
 
+/**** Mesh Creation ****/
 Mesh make_grid( const int n= 10 )
 {
     Mesh grid= Mesh(GL_LINES);
@@ -100,6 +102,48 @@ Mesh make_frustum( )
     return camera;
 }
 
+Mesh make_bbox(Point pMin, Point pMax) {
+    glLineWidth(2);
+    Mesh camera= Mesh(GL_LINES);
+
+    camera.color(Blue());
+    // face avant
+    camera.vertex(pMin.x, pMin.y, pMin.z);
+    camera.vertex(pMin.x, pMax.y, pMin.z);
+    camera.vertex(pMin.x, pMax.y, pMin.z);
+    camera.vertex(pMax.x, pMax.y, pMin.z);
+
+    camera.vertex(pMax.x, pMax.y, pMin.z);
+    camera.vertex(pMax.x, pMin.y, pMin.z);
+    camera.vertex(pMax.x, pMin.y, pMin.z);
+    camera.vertex(pMin.x, pMin.y, pMin.z);
+
+    // face arriere
+    camera.vertex(pMin.x, pMin.y, pMax.z);
+    camera.vertex(pMin.x, pMax.y, pMax.z);
+    camera.vertex(pMin.x, pMax.y, pMax.z);
+    camera.vertex(pMax.x, pMax.y, pMax.z);
+
+    camera.vertex(pMax.x, pMax.y, pMax.z);
+    camera.vertex(pMax.x, pMin.y, pMax.z);
+    camera.vertex(pMax.x, pMin.y, pMax.z);
+    camera.vertex(pMin.x, pMin.y, pMax.z);
+
+    // aretes
+    camera.vertex(pMin.x, pMin.y, pMin.z);
+    camera.vertex(pMin.x, pMin.y, pMax.z);
+    camera.vertex(pMin.x, pMax.y, pMin.z);
+    camera.vertex(pMin.x, pMax.y, pMax.z);
+
+    camera.vertex(pMax.x, pMax.y, pMin.z);
+    camera.vertex(pMax.x, pMax.y, pMax.z);
+    camera.vertex(pMax.x, pMin.y, pMin.z);
+    camera.vertex(pMax.x, pMin.y, pMax.z);
+
+    return camera;
+}
+
+/**** OpenGL structs ****/
 struct Buffers
 {
     GLuint vao;
@@ -216,34 +260,142 @@ struct ShadowMap {
 
 };
 
-struct BBox
+/**** Bounding box ****/
+struct Box {
+    Box() ;
+
+    //Adding points to the box
+    void push(const Point& p) ;
+
+    //Distance from a point to the box
+    Point nearest(const Point& p) const ;
+
+    //Bounds of the box
+    Point min ;
+    Point max ;
+} ;
+
+Box::Box() :
+        min(std::numeric_limits<float>::infinity(),
+            std::numeric_limits<float>::infinity(),
+            std::numeric_limits<float>::infinity()),
+        max(-std::numeric_limits<float>::infinity(),
+            -std::numeric_limits<float>::infinity(),
+            -std::numeric_limits<float>::infinity())
+{}
+
+void Box::push(const Point& point) {
+    min.x = min.x < point.x ? min.x : point.x ;
+    min.y = min.y < point.y ? min.y : point.y ;
+    min.z = min.z < point.z ? min.z : point.z ;
+    max.x = max.x > point.x ? max.x : point.x ;
+    max.y = max.y > point.y ? max.y : point.y ;
+    max.z = max.z > point.z ? max.z : point.z ;
+}
+
+Point Box::nearest(const Point& point) const {
+    Point result ;
+    for(int c = 0; c < 3; ++c) {
+        result(c) = std::min(std::max(point(c), min(c)), max(c)) ;
+    }
+    return result ;
+}
+
+/**** BVH ****/
+struct Node
 {
-    Point pmin, pmax;
-
-    BBox( const Point& p ) : pmin(p), pmax(p) {}
-    BBox( const Point& a, const Point& b ) : pmin(a), pmax(b) {}
-    BBox( const BBox& b ) : pmin(b.pmin), pmax(b.pmax) {}
-
-    BBox& insert( const Point& p ) { pmin= min(pmin, p); pmax= max(pmax, p); return *this; }
-    BBox& insert( const BBox& b ) { pmin= min(pmin, b.pmin); pmax= max(pmax, b.pmax); return *this; }
-
-    float centroid( const int axis ) const { return (pmin(axis) + pmax(axis)) / 2; }
+public:
+    Node(const std::vector<Point>& points, int debut, int fin);
+    Box box();
+    int begin();
+    int end();
+    void split(std::vector<Point>& points);
+    Node* child(int child);
+private:
+    Box boite;
+    int debut;
+    int fin;
+    Node* fg;
+    Node* fd;
 };
 
-BBox EmptyBox( )
-{
-    return BBox(Point(FLT_MAX, FLT_MAX, FLT_MAX),
-                Point(-FLT_MAX, -FLT_MAX, -FLT_MAX));
+Node::Node(const std::vector<Point>& points, int debut, int fin) {
+    for (int i = debut; i < fin; i++) {
+        boite.push(points[i]);
+    }
 }
 
-std::vector<std::pair<Point,Point>> blocDivision(Point pMin, Point pMax) {
-    // Trouver l'axe le plus long
-    // Faire la division sur cet axe
-
-
+Box Node::box() {
+    return boite;
 }
 
-/*std::vector<unsigned> splitBox(std::pair<Point, Point> box,  ) {
+int Node::begin() {
+    return debut;
+}
+
+int Node::end() {
+    return fin;
+}
+
+int partition(int axis, double offset, std::vector<Point>& points, int begin, int end) {
+    std::vector<Point> pointsDebut;
+    std::vector<Point> pointsFin;
+
+    for (int i = begin; i < end; i++) {
+        if (points[i](axis) <= offset) {
+            pointsDebut.push_back(points[i]);
+        }
+        if (points[i](axis) > offset) {
+            pointsFin.push_back(points[i]);
+        }
+    }
+
+    for (int i = 0; i < pointsDebut.size(); i++) {
+        points[i + begin] = pointsDebut[i];
+    }
+
+    int debutFin = begin + pointsDebut.size();
+
+    for (int i = 0; i < pointsFin.size(); i++) {
+        points[i + debutFin] = pointsFin[i];
+    }
+
+    return debutFin;
+}
+
+Node* Node::child(int child) {
+    if (child == 0) {
+        return fg;
+    }
+    else {
+        return fd;
+    }
+}
+
+void Node::split(std::vector<Point>& points) {
+    float hauteur = boite.max.x - boite.min.x;
+    float largeur = boite.max.y - boite.min.y;
+    float profondeur = boite.max.z - boite.min.z;
+    int axis;
+    double offset;
+
+    if (hauteur > largeur) {
+        axis = 1;
+        offset = largeur / 2;
+    }
+    else {
+        axis = 0;
+        offset = hauteur / 2;
+    }
+
+    int debutFD = partition(axis, offset, points, debut, fin);
+
+    fg = new Node(points, 0, debutFD);
+    fd = new Node(points, debutFD, points.size());
+}
+
+/*
+std::vector<unsigned> splitBox(std::pair<Point, Point> box,  ) {
     std::vector<unsigned> triangles;
     m_objet.triangle_count()
     for(int i = 0; i < m_objet.vertex_count(); i++) {
@@ -257,8 +409,10 @@ std::vector<std::pair<Point,Point>> blocDivision(Point pMin, Point pMax) {
         }
     }
     return triangles;
-}*/
+}
+*/
 
+/**** Frustum culling ****/
 static bool isVisibleInProjectedSpace(vec4 boundingBox[8]) {
 
     vec4 v000 = boundingBox[0]; vec4 v001 = boundingBox[1];
@@ -379,6 +533,7 @@ bool frustumCulling(Point pMin, Point pMax, Orbiter m_camera) {
     return true;
 }
 
+/**** Texture array ****/
 GLuint make_texture_array( const int unit, const std::vector<ImageData>& images, const GLenum texel_format= GL_RGBA )
 {
     assert(images.size());
@@ -434,5 +589,15 @@ GLuint make_texture_array( const int unit, const std::vector<ImageData>& images,
     return texture;
 }
 
+// Multi Draw Indirect
+
+struct IndirectParam
+{
+    unsigned index_count;
+    unsigned instance_count;
+    unsigned first_index;
+    unsigned vertex_base;
+    unsigned instance_base;
+};
 
 #endif //GKIT2LIGHT_UTILS_H
